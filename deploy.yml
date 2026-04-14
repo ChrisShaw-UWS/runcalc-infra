@@ -19,7 +19,19 @@
         state: started
         enabled: yes
 
-    - name: Pull and Run Container
+    - name: Pull Docker Image
+      docker_image:
+        name: "{{ docker_image }}"
+        tag: "{{ image_tag }}"
+        source: pull
+
+    - name: Remove existing container
+      docker_container:
+        name: runcalc
+        state: absent
+      ignore_errors: yes
+
+    - name: Run new container
       docker_container:
         name: runcalc
         image: "{{ docker_image }}:{{ image_tag }}"
