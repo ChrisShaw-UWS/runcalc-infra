@@ -1,0 +1,29 @@
+- name: Deploy RunCalc App
+  hosts: web
+  become: true
+
+  tasks:
+
+    - name: Update apt
+      apt:
+        update_cache: yes
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Start Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Pull and Run Container
+      docker_container:
+        name: runcalc
+        image: "{{ docker_image }}:{{ image_tag }}"
+        state: started
+        restart_policy: always
+        ports:
+          - "80:80"
