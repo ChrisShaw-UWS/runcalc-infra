@@ -1,51 +1,42 @@
 pipeline {
     agent any
 
-    environment {
-        DOCKER_REPO = "uwschriss/runcalc-pro"
-        VERSION = "v1.0.${BUILD_NUMBER}"
-    }
-
     stages {
 
-        stage('Build Docker Image') {
+        stage('Checkout Infra Repo') {
             steps {
-                echo "Building Docker Image..."
-                sh "docker build -t $DOCKER_REPO:$VERSION ."
+                git 'https://github.com/ChrisShaw-UWS/runcalc-infra.git'
             }
         }
 
-        stage('Tag Latest') {
+        stage('Run Ansible Deployment') {
             steps {
-                echo "Tagging Image..."
-                sh "docker tag $DOCKER_REPO:$VERSION $DOCKER_REPO:latest"
+                echo "Deploying using Ansible..."
+
+                sh '''
+                ansible-playbook ansible/deploy.yml -i ansible/inventory.ini
+                '''
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Health Check') {
             steps {
-                echo "Pushing to Docker Hub..."
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh """
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        docker push $DOCKER_REPO:$VERSION
-                        docker push $DOCKER_REPO:latest
-                    """
-                }
+                echo "Checking application health..."
+
+                sh '''
+                sleep 10
+                curl -f http://54.88.196.120 || exit 1
+                '''
             }
         }
+    }
 
-        stage('Deploy with Ansible') {
-            steps {
-                echo "Deploying with Ansible..."
-                sh """
-                    ansible-playbook -i ansible/inventory.ini ansible/playbook.yml
-                """
-            }
+    post {
+        success {
+            echo "✅ Deployment successful via Ansible! (Thank goodness)"
+        }
+        failure {
+            echo "❌ Deployment failed via Ansible. Check logs for details (again)."
         }
     }
 }
