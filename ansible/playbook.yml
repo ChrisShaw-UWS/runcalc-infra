@@ -1,0 +1,34 @@
+- name: Deploy RunCalc Pro
+  hosts: web
+  become: yes
+
+  tasks:
+
+    - name: Update apt packages
+      apt:
+        update_cache: yes
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Start Docker service
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Pull Docker image
+      command: docker pull uwschriss/runcalc-pro:latest
+
+    - name: Stop existing container (if exists)
+      command: docker stop runcalc
+      ignore_errors: yes
+
+    - name: Remove existing container (if exists)
+      command: docker rm runcalc
+      ignore_errors: yes
+
+    - name: Run new container
+      command: docker run -d -p 80:80 --name runcalc uwschriss/runcalc-pro:latest

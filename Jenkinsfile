@@ -1,31 +1,49 @@
 pipeline {
     agent any
 
-    parameters {
-        string(name: 'IMAGE_TAG', defaultValue: 'v1.0.8', description: 'Docker Image Version')
+    environment {
+        DOCKER_REPO = "uwschriss/runcalc-pro"
+        VERSION = "v1.0.${BUILD_NUMBER}"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Build Docker Image') {
             steps {
-                git 'https://github.com/ChrisShaw-UWS/runcalc-infra.git'
+                echo "Building Docker Image..."
+                sh "docker build -t $DOCKER_REPO:$VERSION ."
             }
         }
 
-        stage('Deploy to EC2') {
+        stage('Tag Latest') {
             steps {
-                sh """
-                ansible-playbook -i inventory.ini deploy.yml \
-                --extra-vars "image_tag=${IMAGE_TAG}"
-                """
+                echo "Tagging Image..."
+                sh "docker tag $DOCKER_REPO:$VERSION $DOCKER_REPO:latest"
             }
         }
 
-        stage('Verify App') {
+        stage('Push to Docker Hub') {
             steps {
+                echo "Pushing to Docker Hub..."
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push $DOCKER_REPO:$VERSION
+                        docker push $DOCKER_REPO:latest
+                    """
+                }
+            }
+        }
+
+        stage('Deploy with Ansible') {
+            steps {
+                echo "Deploying with Ansible..."
                 sh """
-                curl http://LATEST_EC2_PUBLIC_IP
+                    ansible-playbook -i ansible/inventory.ini ansible/playbook.yml
                 """
             }
         }
